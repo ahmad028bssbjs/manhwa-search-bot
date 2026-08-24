@@ -12,7 +12,7 @@ BOT_TOKEN = "8841689194:AAE234UrxQQa2Ghtxm4zPG_vgLYK17BDA7A" # توکن ربات
 CHANNELS = [
     "@Takmanhwafiles", "@Takmanhwa", "@MangaCity", 
     "@MangaSekai", "@Manhwa_Dimension", "@DelbarManhwa", 
-    "@Manhwa_Eden", "@PersianManhwa", "@Manga_Rise", "@ManhwaPro"
+    "@Manhwa_Eden", "@PersianManhwa", "@Manga_Rise", "@ahwuwiwbj"
 ]
 
 conn = sqlite3.connect("manhwa.db", check_same_thread=False)
