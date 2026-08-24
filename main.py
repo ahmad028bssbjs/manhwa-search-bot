@@ -65,7 +65,7 @@ def load_txt_to_db():
 
             if clean_text:
                 # 🛑 لینک با اسلش (/) کاملاً درست شد
-                link = f"https://t.me{current_channel}/{post_id}"
+                link = f"https://t.me/{current_channel}/{post_id}"
                 cursor.execute("INSERT OR IGNORE INTO archive (channel, link, text) VALUES (?, ?, ?)", (current_channel, link, clean_text))
         except Exception:
             continue
