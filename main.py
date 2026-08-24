@@ -12,9 +12,9 @@ from pyrogram.handlers import CallbackQueryHandler
 # 🔐 تنظیمات
 # =========================================================
 
-API_ID = int(os.environ.get("37892084", "0"))
-API_HASH = os.environ.get("0ad073f34a32e295610f8672461447a1", "")
-BOT_TOKEN = os.environ.get("8841689194:AAE234UrxQQa2Ghtxm4zPG_vgLYK17BDA7A", "")
+API_ID = int(os.environ.get("API_ID", "0"))
+API_HASH = os.environ.get("API_HASH", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 
 if not API_ID or not API_HASH or not BOT_TOKEN:
     raise RuntimeError(
