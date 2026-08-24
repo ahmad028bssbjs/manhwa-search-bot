@@ -46,6 +46,50 @@ async def save_message(client, message):
     if message.chat.username:
         link = f"https://t.me{message.chat.username}/{message.id}"
     else:
+        chat_id_short = str(message.chat.id).replace('-100', '')
+        link = f"https://t.mec/{chat_id_short}/{message.id}"
+    try:
+        cursor.execute("INSERT OR IGNORE INTO archive (channel, link, text) VALUES (?, ?, ?)", (channel_title, link, text))
+        conn.commit()
+    except:
+        pass
+
+@bot.on_message(filters.command("start") & filters.private)
+async def start_cmd(client, message):
+    await message.reply_text("👋 سلام! اسم مانهوا را بفرست تا در کانال تک مانهوا سرچ کنم.")
+
+@bot.on_message(filters.text & filters.private)
+async def search_cmd(client, message):
+    query = message.text
+    cursor.execute("SELECT channel, link, text FROM archive WHERE text LIKE ?", (f"%{query}%",))
+    results = cursor.fetchall()
+    if not results:
+        await message.reply_text("❌ نتیجه‌ای پیدا نشد.")
+        return
+    buttons = []
+    for row in results[-5:]:
+        channel_name, link, text = row
+        short_text = text.split('\n')[0][:20]
+        buttons.append([InlineKeyboardButton(text=f"📢 {channel_name} | {short_text}...", url=link)])
+    await message.reply_text(f"🔍 نتایج برای **{query}**:", reply_markup=InlineKeyboardMarkup(buttons))
+
+# اجرای همزمان سایت فرضی و ربات تلگرام
+if __name__ == "__main__":
+    Thread(target=run_web).start()
+    print("⚡ ربات تلگرام روشن شد.")
+    bot.run()
+conn.commit()
+
+# راه‌اندازی ربات تلگرام
+bot = Client("manhwa_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+@bot.on_message(filters.chat(CHANNELS) & (filters.text | filters.caption))
+async def save_message(client, message):
+    text = message.text or message.caption
+    channel_title = message.chat.title
+    if message.chat.username:
+        link = f"https://t.me{message.chat.username}/{message.id}"
+    else:
         link = f"https://t.mec/{str(message.chat.id).replace('-100', '')}/{message.id}"
     try:
         cursor.execute("INSERT OR IGNORE INTO archive (channel, link, text) VALUES (?, ?, ?)", (channel_title, link, text))
