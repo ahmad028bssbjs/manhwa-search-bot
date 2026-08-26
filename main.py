@@ -5,7 +5,6 @@ from flask import Flask
 from threading import Thread
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.handlers import CallbackQueryHandler
 
 
 # =========================================================
@@ -20,6 +19,15 @@ if not API_ID or not API_HASH or not BOT_TOKEN:
     raise RuntimeError(
         "❌ API_ID / API_HASH / BOT_TOKEN در Environment Variables تنظیم نشده‌اند."
     )
+
+
+# =========================================================
+# 👑 آیدی عددی صاحب ربات
+# =========================================================
+# این عدد را با user_id عددی خودت عوض کن
+# بعداً می‌توانی با دستور /myid آیدی خودت را پیدا کنی.
+
+OWNER_ID = 7459890105
 
 
 # =========================================================
@@ -42,6 +50,11 @@ conn = sqlite3.connect(
 
 cursor = conn.cursor()
 
+
+# =========================================================
+# 📚 جدول آرشیو
+# =========================================================
+
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS archive (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +62,22 @@ CREATE TABLE IF NOT EXISTS archive (
     message_id INTEGER NOT NULL,
     link TEXT NOT NULL UNIQUE,
     text TEXT
+)
+""")
+
+
+# =========================================================
+# 👥 جدول کاربران
+# =========================================================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """)
 
@@ -69,18 +98,52 @@ bot = Client(
 
 # =========================================================
 # 📌 ذخیره جستجوهای فعال
-#
-# کل متن آرشیو اینجا ذخیره نمی‌شود.
-# فقط عبارت جستجو نگهداری می‌شود.
-#
-# کلید:
-# (chat_id, bot_message_id)
-#
-# مقدار:
-# query
 # =========================================================
 
 search_sessions = {}
+
+
+# =========================================================
+# 👥 ذخیره / بروزرسانی کاربر
+# =========================================================
+
+def save_user(user):
+
+    if not user:
+        return
+
+    try:
+
+        cursor.execute("""
+            INSERT INTO users
+            (
+                user_id,
+                username,
+                first_name,
+                last_name
+            )
+            VALUES (?, ?, ?, ?)
+
+            ON CONFLICT(user_id)
+            DO UPDATE SET
+                username = excluded.username,
+                first_name = excluded.first_name,
+                last_name = excluded.last_name,
+                last_seen = CURRENT_TIMESTAMP
+        """, (
+            user.id,
+            user.username,
+            user.first_name,
+            user.last_name
+        ))
+
+        conn.commit()
+
+    except Exception as e:
+
+        print(
+            f"⚠️ خطا در ذخیره کاربر: {e}"
+        )
 
 
 # =========================================================
@@ -105,13 +168,17 @@ def extract_message_id(header):
 
     header = header.strip()
 
-    match = re.search(r"(\d+)", header)
+    match = re.search(
+        r"(\d+)",
+        header
+    )
 
     if not match:
         return None
 
     try:
         return int(match.group(1))
+
     except ValueError:
         return None
 
@@ -122,12 +189,18 @@ def extract_message_id(header):
 
 def load_archive_file(file_path):
 
-    channel = clean_channel_name(file_path)
+    channel = clean_channel_name(
+        file_path
+    )
 
     print()
     print("=" * 60)
-    print(f"📂 فایل: {os.path.basename(file_path)}")
-    print(f"📢 کانال: @{channel}")
+    print(
+        f"📂 فایل: {os.path.basename(file_path)}"
+    )
+    print(
+        f"📢 کانال: @{channel}"
+    )
     print("=" * 60)
 
     try:
@@ -143,7 +216,9 @@ def load_archive_file(file_path):
 
     except Exception as e:
 
-        print(f"❌ خطا در خواندن فایل: {e}")
+        print(
+            f"❌ خطا در خواندن فایل: {e}"
+        )
 
         return 0
 
@@ -184,7 +259,9 @@ def load_archive_file(file_path):
         id_part = parts[0].strip()
         post_text = parts[1].strip()
 
-        message_id = extract_message_id(id_part)
+        message_id = extract_message_id(
+            id_part
+        )
 
         if not message_id:
 
@@ -198,15 +275,23 @@ def load_archive_file(file_path):
 
             continue
 
-        # لینک صحیح
-        link = f"https://t.me/{channel}/{message_id}"
+        link = (
+            f"https://t.me/"
+            f"{channel}/"
+            f"{message_id}"
+        )
 
         try:
 
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO archive
-                (channel, message_id, link, text)
+                (
+                    channel,
+                    message_id,
+                    link,
+                    text
+                )
                 VALUES (?, ?, ?, ?)
                 """,
                 (
@@ -230,8 +315,13 @@ def load_archive_file(file_path):
 
     conn.commit()
 
-    print(f"✅ اضافه شد: {added}")
-    print(f"⏭️ رد شد: {skipped}")
+    print(
+        f"✅ اضافه شد: {added}"
+    )
+
+    print(
+        f"⏭️ رد شد: {skipped}"
+    )
 
     return added
 
@@ -242,13 +332,19 @@ def load_archive_file(file_path):
 
 def load_all_archives():
 
-    if not os.path.exists(ARCHIVE_DIR):
+    if not os.path.exists(
+        ARCHIVE_DIR
+    ):
 
-        os.makedirs(ARCHIVE_DIR)
+        os.makedirs(
+            ARCHIVE_DIR
+        )
 
     files = []
 
-    for filename in os.listdir(ARCHIVE_DIR):
+    for filename in os.listdir(
+        ARCHIVE_DIR
+    ):
 
         full_path = os.path.join(
             ARCHIVE_DIR,
@@ -256,18 +352,27 @@ def load_all_archives():
         )
 
         if (
-            filename.lower().endswith("_archive.txt")
-            and os.path.isfile(full_path)
+            filename.lower().endswith(
+                "_archive.txt"
+            )
+            and
+            os.path.isfile(
+                full_path
+            )
         ):
 
-            files.append(full_path)
+            files.append(
+                full_path
+            )
 
     files.sort()
 
     if not files:
 
         print()
-        print("❌ هیچ فایل آرشیوی پیدا نشد.")
+        print(
+            "❌ هیچ فایل آرشیوی پیدا نشد."
+        )
         print()
         print(
             f"📁 فایل‌ها را داخل پوشه "
@@ -279,29 +384,49 @@ def load_all_archives():
 
     print()
     print("=" * 60)
-    print("🚀 شروع ساخت دیتابیس")
+    print(
+        "🚀 شروع ساخت دیتابیس"
+    )
     print("=" * 60)
-    print(f"📚 تعداد فایل‌ها: {len(files)}")
+
+    print(
+        f"📚 تعداد فایل‌ها: {len(files)}"
+    )
+
     print()
 
     total = 0
 
     for file_path in files:
 
-        total += load_archive_file(file_path)
+        total += load_archive_file(
+            file_path
+        )
 
     cursor.execute(
         "SELECT COUNT(*) FROM archive"
     )
 
-    total_database = cursor.fetchone()[0]
+    total_database = (
+        cursor.fetchone()[0]
+    )
 
     print()
     print("=" * 60)
-    print("🎉 ساخت دیتابیس تمام شد")
+    print(
+        "🎉 ساخت دیتابیس تمام شد"
+    )
     print("=" * 60)
-    print(f"📥 رکوردهای جدید: {total}")
-    print(f"🗄️ کل رکوردها: {total_database}")
+
+    print(
+        f"📥 رکوردهای جدید: {total}"
+    )
+
+    print(
+        f"🗄️ کل رکوردها: "
+        f"{total_database}"
+    )
+
     print("=" * 60)
 
 
@@ -313,9 +438,20 @@ def normalize_text(text):
 
     text = text.strip()
 
-    text = text.replace("ي", "ی")
-    text = text.replace("ى", "ی")
-    text = text.replace("ك", "ک")
+    text = text.replace(
+        "ي",
+        "ی"
+    )
+
+    text = text.replace(
+        "ى",
+        "ی"
+    )
+
+    text = text.replace(
+        "ك",
+        "ک"
+    )
 
     return text
 
@@ -324,15 +460,30 @@ def normalize_text(text):
 # 📝 کوتاه کردن متن نتیجه
 # =========================================================
 
-def make_short_text(text, max_length=220):
+def make_short_text(
+    text,
+    max_length=220
+):
 
-    text = text.replace("\n", " ")
-    text = re.sub(r"\s+", " ", text)
+    text = text.replace(
+        "\n",
+        " "
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
+
     text = text.strip()
 
     if len(text) > max_length:
 
-        return text[:max_length] + "..."
+        return (
+            text[:max_length]
+            + "..."
+        )
 
     return text
 
@@ -341,19 +492,34 @@ def make_short_text(text, max_length=220):
 # 🔎 گرفتن نتایج یک صفحه
 # =========================================================
 
-def get_results(query, page):
+def get_results(
+    query,
+    page
+):
 
     PAGE_SIZE = 5
 
-    offset = page * PAGE_SIZE
+    offset = (
+        page *
+        PAGE_SIZE
+    )
 
     cursor.execute(
         """
-        SELECT channel, message_id, link, text
+        SELECT
+            channel,
+            message_id,
+            link,
+            text
+
         FROM archive
+
         WHERE text LIKE ?
+
         ORDER BY id DESC
-        LIMIT ? OFFSET ?
+
+        LIMIT ?
+        OFFSET ?
         """,
         (
             f"%{query}%",
@@ -368,21 +534,31 @@ def get_results(query, page):
 
 
 # =========================================================
-# 🔢 بررسی اینکه صفحه بعدی وجود دارد
+# 🔢 بررسی صفحه بعدی
 # =========================================================
 
-def has_next_page(query, page):
+def has_next_page(
+    query,
+    page
+):
 
     PAGE_SIZE = 5
 
-    next_offset = (page + 1) * PAGE_SIZE
+    next_offset = (
+        (page + 1)
+        * PAGE_SIZE
+    )
 
     cursor.execute(
         """
         SELECT 1
+
         FROM archive
+
         WHERE text LIKE ?
-        LIMIT 1 OFFSET ?
+
+        LIMIT 1
+        OFFSET ?
         """,
         (
             f"%{query}%",
@@ -390,7 +566,10 @@ def has_next_page(query, page):
         )
     )
 
-    return cursor.fetchone() is not None
+    return (
+        cursor.fetchone()
+        is not None
+    )
 
 
 # =========================================================
@@ -412,15 +591,22 @@ def build_results_text(
         message_id,
         link,
         post_text
-    ) in enumerate(results, start=1):
+    ) in enumerate(
+        results,
+        start=1
+    ):
 
-        short_text = make_short_text(
-            post_text
+        short_text = (
+            make_short_text(
+                post_text
+            )
         )
 
         text += (
-            f"**{index}. @{channel}**\n"
-            f"🆔 پست: `{message_id}`\n"
+            f"**{index}. "
+            f"@{channel}**\n"
+            f"🆔 پست: "
+            f"`{message_id}`\n"
             f"📝 {short_text}\n\n"
         )
 
@@ -439,16 +625,15 @@ def build_keyboard(
 
     buttons = []
 
-    # -----------------------------------------------------
-    # دکمه ورود به هر نتیجه
-    # -----------------------------------------------------
-
     for index, (
         channel,
         message_id,
         link,
         post_text
-    ) in enumerate(results, start=1):
+    ) in enumerate(
+        results,
+        start=1
+    ):
 
         buttons.append(
             [
@@ -459,10 +644,6 @@ def build_keyboard(
             ]
         )
 
-    # -----------------------------------------------------
-    # دکمه‌های قبلی / بعدی
-    # -----------------------------------------------------
-
     navigation = []
 
     if page > 0:
@@ -470,24 +651,35 @@ def build_keyboard(
         navigation.append(
             InlineKeyboardButton(
                 "⬅️ قبلی",
-                callback_data=f"page:{page - 1}"
+                callback_data=(
+                    f"page:{page - 1}"
+                )
             )
         )
 
-    if has_next_page(query, page):
+    if has_next_page(
+        query,
+        page
+    ):
 
         navigation.append(
             InlineKeyboardButton(
                 "➡️ بعدی",
-                callback_data=f"page:{page + 1}"
+                callback_data=(
+                    f"page:{page + 1}"
+                )
             )
         )
 
     if navigation:
 
-        buttons.append(navigation)
+        buttons.append(
+            navigation
+        )
 
-    return InlineKeyboardMarkup(buttons)
+    return InlineKeyboardMarkup(
+        buttons
+    )
 
 
 # =========================================================
@@ -502,6 +694,11 @@ async def start_command(
     message
 ):
 
+    # ثبت کاربر
+    save_user(
+        message.from_user
+    )
+
     await message.reply_text(
         "👋 سلام!\n\n"
         "🔎 نام مانهوا را بفرست.\n"
@@ -513,17 +710,126 @@ async def start_command(
 
 
 # =========================================================
+# 🆔 نمایش User ID
+# =========================================================
+
+@bot.on_message(
+    filters.command("myid")
+)
+async def myid_command(
+    client,
+    message
+):
+
+    await message.reply_text(
+        f"🆔 User ID شما:\n\n"
+        f"`{message.from_user.id}`"
+    )
+
+
+# =========================================================
+# 📊 آمار ربات
+# =========================================================
+
+@bot.on_message(
+    filters.command("stats")
+)
+async def stats_command(
+    client,
+    message
+):
+
+    # فقط صاحب ربات
+    if (
+        message.from_user.id
+        != OWNER_ID
+    ):
+
+        return
+
+    # کل کاربران
+    cursor.execute(
+        "SELECT COUNT(*) FROM users"
+    )
+
+    total_users = (
+        cursor.fetchone()[0]
+    )
+
+    # کاربران امروز
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM users
+        WHERE date(last_seen)
+        = date('now')
+        """
+    )
+
+    today_users = (
+        cursor.fetchone()[0]
+    )
+
+    # کاربران 7 روز اخیر
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM users
+        WHERE datetime(last_seen)
+        >= datetime('now', '-7 days')
+        """
+    )
+
+    week_users = (
+        cursor.fetchone()[0]
+    )
+
+    # کاربران 30 روز اخیر
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM users
+        WHERE datetime(last_seen)
+        >= datetime('now', '-30 days')
+        """
+    )
+
+    month_users = (
+        cursor.fetchone()[0]
+    )
+
+    await message.reply_text(
+        "📊 **آمار ربات**\n\n"
+        f"👥 کل کاربران: "
+        f"**{total_users}**\n\n"
+        f"🟢 کاربران امروز: "
+        f"**{today_users}**\n"
+        f"📅 کاربران ۷ روز اخیر: "
+        f"**{week_users}**\n"
+        f"📆 کاربران ۳۰ روز اخیر: "
+        f"**{month_users}**"
+    )
+
+
+# =========================================================
 # 🔎 جستجوی اصلی
 # =========================================================
 
 @bot.on_message(
     filters.text &
-    ~filters.command("start")
+    ~filters.command("start") &
+    ~filters.command("stats") &
+    ~filters.command("myid")
 )
 async def search_manhwa(
     client,
     message
 ):
+
+    # ثبت کاربر
+    save_user(
+        message.from_user
+    )
 
     query = normalize_text(
         message.text
@@ -537,7 +843,6 @@ async def search_manhwa(
 
         return
 
-    # صفحه اول
     page = 0
 
     results = get_results(
@@ -548,7 +853,8 @@ async def search_manhwa(
     if not results:
 
         await message.reply_text(
-            "❌ متأسفانه نتیجه‌ای در آرشیو پیدا نشد."
+            "❌ متأسفانه نتیجه‌ای "
+            "در آرشیو پیدا نشد."
         )
 
         return
@@ -564,12 +870,13 @@ async def search_manhwa(
         query
     )
 
-    sent_message = await message.reply_text(
-        text,
-        reply_markup=keyboard
+    sent_message = (
+        await message.reply_text(
+            text,
+            reply_markup=keyboard
+        )
     )
 
-    # ذخیره فقط عبارت جستجو
     search_sessions[
         (
             message.chat.id,
@@ -583,7 +890,9 @@ async def search_manhwa(
 # =========================================================
 
 @bot.on_callback_query(
-    filters.regex(r"^page:\d+$")
+    filters.regex(
+        r"^page:\d+$"
+    )
 )
 async def pagination_callback(
     client,
@@ -593,7 +902,8 @@ async def pagination_callback(
     try:
 
         page = int(
-            callback_query.data.split(":")[1]
+            callback_query.data
+            .split(":")[1]
         )
 
     except Exception:
@@ -610,12 +920,17 @@ async def pagination_callback(
         callback_query.message.id
     )
 
-    query = search_sessions.get(key)
+    query = (
+        search_sessions.get(
+            key
+        )
+    )
 
     if not query:
 
         await callback_query.answer(
-            "⚠️ این جستجو منقضی شده است. دوباره جستجو کن.",
+            "⚠️ این جستجو منقضی شده است. "
+            "دوباره جستجو کن.",
             show_alert=True
         )
 
@@ -677,7 +992,10 @@ app = Flask(__name__)
 @app.route("/")
 def home():
 
-    return "🤖 Manhwa Search Bot is alive!"
+    return (
+        "🤖 Manhwa Search Bot "
+        "is alive!"
+    )
 
 
 def run_flask():
@@ -703,7 +1021,9 @@ if __name__ == "__main__":
 
     print()
     print("=" * 60)
-    print("🤖 MANHWA SEARCH BOT")
+    print(
+        "🤖 MANHWA SEARCH BOT"
+    )
     print("=" * 60)
 
     # ساخت / تکمیل دیتابیس
@@ -718,8 +1038,12 @@ if __name__ == "__main__":
     flask_thread.start()
 
     print()
-    print("🌐 Flask روشن شد.")
-    print("🚀 ربات در حال اجراست...")
+    print(
+        "🌐 Flask روشن شد."
+    )
+    print(
+        "🚀 ربات در حال اجراست..."
+    )
     print()
 
     bot.run()
